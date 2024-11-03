@@ -1,4 +1,6 @@
-This repository is used to parameterize a second-order equivalent circuit model.
+This repository is used to parameterize a second-order equivalent circuit model on a dynamic discharge profile.
+
+The operational data of the dynamic discharge profile is contained in `data.mat`
 
 `idtfRCParam_IGWO.m`: the main script using improved gray wolf optimizer (IGWO) to find optimal ECM parameters.
 
