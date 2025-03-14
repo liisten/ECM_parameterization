@@ -5,8 +5,9 @@ function [vm,OCV] = simECM(paraVec,temp,deltaT,ik,model,z0,iR0,opt)
 R0 = paraVec(1); R1 = paraVec(2); C1 = paraVec(3);
 R2 = paraVec(4); C2 = paraVec(5);
 
-% the way to obtain hysteresis parameters.
-switch opt.hysIdtf
+
+% determine how to obtain pss parameters.
+switch opt.hys_pss
     case 'separate'
         G  = getParaECM('GParam',temp,model);
         M  = getParaECM('MParam',temp,model);
@@ -15,13 +16,17 @@ switch opt.hysIdtf
         G = paraVec(6); 
         M = paraVec(7); 
         M0 = paraVec(8);
+    case 'null'
+        G = 0;
+        M = 0;
+        M0 = 0;
     otherwise
         error('wrong')
 end
 
 ik = ik(:); iR0 = iR0(:);
 
-Q = 0.98;
+Q = model.(['T',num2str(temp)]).QParam;
 
 tau1 = exp(-deltaT/R1/C1);
 tau2 = exp(-deltaT/R2/C2);
@@ -53,13 +58,14 @@ for k = 2:length(ik)
     end
 end
 
+% choose OCV model
 switch opt.OCVmodel
-    case 'average'
+    case 'AVG'
         for k= 1:length(soc)
             OCV(k,1) = OCVfromSOCtemp_AVG(soc(k),temp,model);
         end
         vm = OCV - ik * R0 - irk*[R1;R2];
-    case 'discharge'
+    case 'DIS'
         for k= 1:length(soc)
             OCV(k,1) = OCVfromSOCtemp_DIS(soc(k),temp,model);
         end
@@ -69,9 +75,28 @@ switch opt.OCVmodel
             OCV(k,1) = OCVfromSOCtemp_AVG(soc(k),temp,model);
         end
         vm = OCV - ik * R0 - irk*[R1;R2] + M * Hys + M0 * sI;
+        % todo, 
+        % for k = 1:length(soc)
+        %     vm(k,1) = OCVfromSOCtemp_AVG(soc(k),temp,model) ...
+        %         - ik(k) * R0 - irk(k,:)*[R1;R2] + M * Hys(k) + M0 * sI(k);
+        % end
+    case 'ML'
+        for k= 1:length(soc)
+            OCV(k,1) = OCVfromSOCtemp_ML(soc(k),temp,model,opt);
+        end
+        vm = OCV - ik * R0 - irk*[R1;R2];
+    case 'MLplus'
+        for k= 1:length(soc)
+            OCV(k,1) = OCVfromSOCtemp_ML(soc(k),temp,model,opt);
+        end
+        vm = OCV - ik * R0 - irk*[R1;R2] + M * Hys + M0*sI;
+    case 'PI'
+        for k= 1:length(soc)
+            OCV(k,1) = OCVfromSOCtemp_PI(soc(k),temp,model,opt);
+        end
+        vm = OCV - ik * R0 - irk*[R1;R2];
     otherwise
         error('please choose an OCV model.')
 end
-
 end
 

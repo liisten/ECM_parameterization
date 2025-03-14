@@ -1,6 +1,6 @@
 % Improved Grey Wolf Optimizer (I-GWO)
 function [Alpha_score,Alpha_pos,Convergence_curve] = ...
-IGWOforECM(dim,N,Max_iter,lb,ub,fobj,tempature,deltaT,vk,ik,model,z0,iR0)
+IGWOforECM(dim,N,Max_iter,lb,ub,fobj,temperature,deltaT,vk,ik,model,z0,iR0)
 
 lu = [lb .* ones(1, dim); ub .* ones(1, dim)];
 
@@ -21,8 +21,8 @@ Positions = boundConstraint(Positions, Positions, lu);
 
 % Calculate objective function for each wolf
 % Fit = zeros(size(Positions,1),1);
-for i=1:size(Positions,1)
-    Fit(i) = fobj(Positions(i,:),tempature,deltaT,vk,ik,model,z0,iR0); % here
+parfor i=1:size(Positions,1)
+    Fit(i) = fobj(Positions(i,:),temperature,deltaT,vk,ik,model,z0,iR0); % here
 end
 
 % Personal best fitness and position obtained by each wolf
@@ -58,9 +58,12 @@ while iter < Max_iter
     
     %% Calculate the candiadate position Xi-GWO
     a=2-iter*((2)/Max_iter); % a decreases linearly from 2 to 0
-    
+    % 预分配临时变量
+    temp_X_GWO = zeros(size(Positions));
+    temp_Fit_GWO = zeros(size(Positions, 1), 1);
     % Update the Position of search agents including omegas
-    for i=1:size(Positions,1)
+    parfor i=1:size(Positions,1)
+        tempPos = zeros(1, dim); % 每个迭代的临时变量
         for j=1:size(Positions,2)
 
             r1=rand(); % r1 is a random number in [0,1]
@@ -90,32 +93,39 @@ while iter < Max_iter
             D_delta=abs(C3*Delta_pos(j)-Positions(i,j));    % Equation (3.5)-part 3
             X3=Delta_pos(j)-A3*D_delta;                     % Equation (3.5)-part 3
 
-            X_GWO(i,j)=(X1+X2+X3)/3;                        % Equation (3.7)
+            tempPos(j)=(X1+X2+X3)/3;                        % Equation (3.7)
 
         end
-        X_GWO(i,:) = boundConstraint(X_GWO(i,:), Positions(i,:), lu);
-        Fit_GWO(i) = fobj(X_GWO(i,:),tempature,deltaT,vk,ik,model,z0,iR0); % here
+        temp_X_GWO(i,:) = boundConstraint(tempPos, Positions(i,:), lu);
+        temp_Fit_GWO(i) = fobj(temp_X_GWO(i,:),temperature,deltaT,vk,ik,model,z0,iR0); % here
     end
-
+    % 将临时变量赋值回原变量
+    X_GWO = temp_X_GWO;
+    Fit_GWO = temp_Fit_GWO';
     %% Calculate the candiadate position Xi-DLH
     radius = pdist2(Positions, X_GWO, 'euclidean');         % Equation (10)
     dist_Position = squareform(pdist(Positions));
     r1 = randperm(N,N);
-
-    for t=1:N
+    
+    % 预分配临时变量
+    temp_X_DLH = zeros(size(Positions));
+    temp_Fit_DLH = zeros(size(Positions, 1), 1);
+    parfor t=1:N
+        tempPos = zeros(1, dim); % 每个迭代的临时变量
         neighbor(t,:) = (dist_Position(t,:)<=radius(t,t));
         [~,Idx] = find(neighbor(t,:)==1);                   % Equation (11)             
         random_Idx_neighbor = randi(size(Idx,2),1,dim);
 
         for d=1:dim
-            X_DLH(t,d) = Positions(t,d) + rand .*(Positions(Idx(random_Idx_neighbor(d)),d)...
+            tempPos(d) = Positions(t,d) + rand .*(Positions(Idx(random_Idx_neighbor(d)),d)...
                 - Positions(r1(t),d));                      % Equation (12)
         end
-        X_DLH(t,:) = boundConstraint(X_DLH(t,:), Positions(t,:), lu);
-        Fit_DLH(t) = fobj(X_DLH(t,:),tempature,deltaT,vk,ik,model,z0,iR0); % here
+        temp_X_DLH(t,:) = boundConstraint(tempPos, Positions(t,:), lu);
+        temp_Fit_DLH(t) = fobj(temp_X_DLH(t,:),temperature,deltaT,vk,ik,model,z0,iR0); % here
     end
-
-
+    % 将临时变量赋值回原变量
+    X_DLH = temp_X_DLH;
+    Fit_DLH = temp_Fit_DLH';
 
     %% Selection  
     tmp = Fit_GWO < Fit_DLH;                                % Equation (13)
